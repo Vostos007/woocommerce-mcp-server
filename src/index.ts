@@ -1,11 +1,13 @@
 import { createServer, JsonRpcTransport } from '@modelcontextprotocol/server';
+import dotenv from 'dotenv';
+import WooCommerceClient from './utils/woocommerce';
+import WordPressClient from './utils/wordpress';
 import { createProductTools } from './tools/products';
 import { createOrderTools } from './tools/orders';
 import { createCustomerTools } from './tools/customers';
 import { createAnalyticsTools } from './tools/analytics';
 import { createPostTools } from './tools/posts';
 import { createSEOTools } from './tools/seo';
-import dotenv from 'dotenv';
 
 // Загрузка переменных окружения
 dotenv.config();
@@ -30,6 +32,9 @@ if (!wooConfig.url || !wooConfig.consumerKey || !wooConfig.consumerSecret) {
   process.exit(1);
 }
 
+// Инициализация клиентов
+const wooCommerceClient = new WooCommerceClient(wooConfig);
+
 // Создание инструментов
 const productTools = createProductTools(wooConfig);
 const orderTools = createOrderTools(wooConfig);
@@ -41,6 +46,7 @@ let postTools;
 let seoTools;
 
 if (wpConfig.username && wpConfig.password) {
+  const wordpressClient = new WordPressClient(wpConfig);
   postTools = createPostTools(wpConfig);
   seoTools = createSEOTools(wpConfig);
 }
@@ -60,9 +66,19 @@ const server = createServer({
       description: 'Информация о магазине WooCommerce',
       content: async () => {
         try {
-          // Используем productTools чтобы проверить соединение
-          const products = await productTools.listProducts({ per_page: 1 });
-          
+          const response = await wooCommerceClient.getSystemStatus();
+          return `# WooCommerce Store
+
+URL: ${wooConfig.url}
+API Version: wc/v3
+WooCommerce Version: ${response.data.environment.wc_version}
+WordPress Version: ${response.data.environment.wp_version}
+Theme: ${response.data.theme.name} (version ${response.data.theme.version})
+Currency: ${response.data.settings.currency}
+
+## Capabilities
+This MCP server allows you to manage all aspects of your WooCommerce store, including products, orders, customers, and more.`;
+        } catch (error) {
           return `# WooCommerce Store
 
 URL: ${wooConfig.url}
@@ -74,8 +90,6 @@ Analytics: Available for reporting
 
 ## Capabilities
 This MCP server allows you to manage all aspects of your WooCommerce store, including products, orders, customers, and more.`;
-        } catch (error) {
-          return `Error connecting to WooCommerce store: ${error.message}`;
         }
       }
     },
