@@ -1,0 +1,34 @@
+# Зависимости
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Переменные окружения
+.env
+
+# Скомпилированные файлы
+dist/
+build/
+
+# Логи
+logs/
+*.log
+
+# Файлы редакторов
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Операционные системы
+.DS_Store
+Thumbs.db
+
+# Кэш
+.npm
+.cache/
+
+# Временные файлы
+tmp/
+temp/
