@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  woocommerce-mcp-server:
+    build:
+      context: .
+      target: builder
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./src:/app/src
+      - ./dist:/app/dist
+    command: npm run dev
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+
+  # Add Redis for caching and message queue functionality
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
