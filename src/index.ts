@@ -1,13 +1,17 @@
 import { createServer, JsonRpcTransport } from '@modelcontextprotocol/server';
-import dotenv from 'dotenv';
-import WooCommerceClient from './utils/woocommerce';
-import WordPressClient from './utils/wordpress';
 import { createProductTools } from './tools/products';
 import { createOrderTools } from './tools/orders';
 import { createCustomerTools } from './tools/customers';
 import { createAnalyticsTools } from './tools/analytics';
 import { createPostTools } from './tools/posts';
 import { createSEOTools } from './tools/seo';
+import { createCategoryTools } from './tools/categories';
+import { createTagTools } from './tools/tags';
+import { createAttributeTools } from './tools/attributes';
+import { createCouponTools } from './tools/coupons';
+import { createSettingsTools } from './tools/settings';
+import { createMediaTools } from './tools/media';
+import dotenv from 'dotenv';
 
 // Загрузка переменных окружения
 dotenv.config();
@@ -32,32 +36,39 @@ if (!wooConfig.url || !wooConfig.consumerKey || !wooConfig.consumerSecret) {
   process.exit(1);
 }
 
-// Инициализация клиентов
-const wooCommerceClient = new WooCommerceClient(wooConfig);
-
 // Создание инструментов
 const productTools = createProductTools(wooConfig);
 const orderTools = createOrderTools(wooConfig);
 const customerTools = createCustomerTools(wooConfig);
 const analyticsTools = createAnalyticsTools(wooConfig);
+const categoryTools = createCategoryTools(wooConfig);
+const tagTools = createTagTools(wooConfig);
+const attributeTools = createAttributeTools(wooConfig);
+const couponTools = createCouponTools(wooConfig);
+const settingsTools = createSettingsTools(wooConfig);
 
 // WordPress инструменты требуют дополнительных учетных данных
 let postTools;
 let seoTools;
+let mediaTools;
 
 if (wpConfig.username && wpConfig.password) {
-  const wordpressClient = new WordPressClient(wpConfig);
   postTools = createPostTools(wpConfig);
   seoTools = createSEOTools(wpConfig);
+  mediaTools = createMediaTools({
+    ...wpConfig,
+    consumerKey: wooConfig.consumerKey,
+    consumerSecret: wooConfig.consumerSecret
+  });
 }
 
 // Создание MCP-сервера
 const server = createServer({
   // Информация о сервере
   info: {
-    name: process.env.SERVER_NAME || 'woocommerce-mcp-server',
-    version: process.env.SERVER_VERSION || '1.0.0',
-    description: process.env.SERVER_DESCRIPTION || 'MCP-сервер для управления магазином WooCommerce',
+    name: 'woocommerce-mcp-server',
+    version: '1.0.0',
+    description: 'MCP-сервер для управления магазином WooCommerce',
   },
   
   // Определение ресурсов
@@ -66,19 +77,8 @@ const server = createServer({
       description: 'Информация о магазине WooCommerce',
       content: async () => {
         try {
-          const response = await wooCommerceClient.getSystemStatus();
-          return `# WooCommerce Store
-
-URL: ${wooConfig.url}
-API Version: wc/v3
-WooCommerce Version: ${response.data.environment.wc_version}
-WordPress Version: ${response.data.environment.wp_version}
-Theme: ${response.data.theme.name} (version ${response.data.theme.version})
-Currency: ${response.data.settings.currency}
-
-## Capabilities
-This MCP server allows you to manage all aspects of your WooCommerce store, including products, orders, customers, and more.`;
-        } catch (error) {
+          const client = createProductTools(wooConfig);
+          const store = await client.listProducts({ per_page: 1 });
           return `# WooCommerce Store
 
 URL: ${wooConfig.url}
@@ -90,6 +90,8 @@ Analytics: Available for reporting
 
 ## Capabilities
 This MCP server allows you to manage all aspects of your WooCommerce store, including products, orders, customers, and more.`;
+        } catch (error) {
+          return `Error connecting to WooCommerce store: ${error.message}`;
         }
       }
     },
@@ -201,7 +203,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
         parent: { type: 'number', description: 'Фильтр по родительской категории' },
         search: { type: 'string', description: 'Поисковый запрос' }
       },
-      execute: async (params) => productTools.listProductCategories(params)
+      execute: async (params) => categoryTools.listProductCategories(params)
     },
     
     get_product_category: {
@@ -209,7 +211,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
       parameters: {
         id: { type: 'number', description: 'ID категории', required: true }
       },
-      execute: async (params) => productTools.getProductCategory(params.id)
+      execute: async (params) => categoryTools.getProductCategory(params.id)
     },
     
     create_product_category: {
@@ -221,7 +223,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
           required: true 
         }
       },
-      execute: async (params) => productTools.createProductCategory(params.categoryData)
+      execute: async (params) => categoryTools.createProductCategory(params.categoryData)
     },
     
     update_product_category: {
@@ -234,7 +236,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
           required: true 
         }
       },
-      execute: async (params) => productTools.updateProductCategory(params.id, params.categoryData)
+      execute: async (params) => categoryTools.updateProductCategory(params.id, params.categoryData)
     },
     
     delete_product_category: {
@@ -243,7 +245,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
         id: { type: 'number', description: 'ID категории', required: true },
         force: { type: 'boolean', description: 'Принудительное удаление' }
       },
-      execute: async (params) => productTools.deleteProductCategory(params.id, params.force)
+      execute: async (params) => categoryTools.deleteProductCategory(params.id, params.force)
     },
     
     // Вариации товаров
@@ -304,6 +306,183 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
         force: { type: 'boolean', description: 'Принудительное удаление' }
       },
       execute: async (params) => productTools.deleteProductVariation(params.productId, params.variationId, params.force)
+    },
+    
+    // Теги товаров
+    list_product_tags: {
+      description: 'Получить список тегов товаров',
+      parameters: {
+        page: { type: 'number', description: 'Номер страницы' },
+        per_page: { type: 'number', description: 'Количество тегов на странице' },
+        search: { type: 'string', description: 'Поисковый запрос' }
+      },
+      execute: async (params) => tagTools.listProductTags(params)
+    },
+    
+    get_product_tag: {
+      description: 'Получить информацию о конкретном теге товара',
+      parameters: {
+        id: { type: 'number', description: 'ID тега', required: true }
+      },
+      execute: async (params) => tagTools.getProductTag(params.id)
+    },
+    
+    create_product_tag: {
+      description: 'Создать новый тег товара',
+      parameters: {
+        tagData: { 
+          type: 'object', 
+          description: 'Данные тега', 
+          required: true 
+        }
+      },
+      execute: async (params) => tagTools.createProductTag(params.tagData)
+    },
+    
+    update_product_tag: {
+      description: 'Обновить существующий тег товара',
+      parameters: {
+        id: { type: 'number', description: 'ID тега', required: true },
+        tagData: { 
+          type: 'object', 
+          description: 'Данные для обновления тега', 
+          required: true 
+        }
+      },
+      execute: async (params) => tagTools.updateProductTag(params.id, params.tagData)
+    },
+    
+    delete_product_tag: {
+      description: 'Удалить тег товара',
+      parameters: {
+        id: { type: 'number', description: 'ID тега', required: true },
+        force: { type: 'boolean', description: 'Принудительное удаление' }
+      },
+      execute: async (params) => tagTools.deleteProductTag(params.id, params.force)
+    },
+    
+    // Атрибуты товаров
+    list_product_attributes: {
+      description: 'Получить список атрибутов товаров',
+      parameters: {
+        page: { type: 'number', description: 'Номер страницы' },
+        per_page: { type: 'number', description: 'Количество атрибутов на странице' }
+      },
+      execute: async (params) => attributeTools.listProductAttributes(params)
+    },
+    
+    get_product_attribute: {
+      description: 'Получить информацию о конкретном атрибуте товара',
+      parameters: {
+        id: { type: 'number', description: 'ID атрибута', required: true }
+      },
+      execute: async (params) => attributeTools.getProductAttribute(params.id)
+    },
+    
+    create_product_attribute: {
+      description: 'Создать новый атрибут товара',
+      parameters: {
+        attributeData: { 
+          type: 'object', 
+          description: 'Данные атрибута', 
+          required: true 
+        }
+      },
+      execute: async (params) => attributeTools.createProductAttribute(params.attributeData)
+    },
+    
+    update_product_attribute: {
+      description: 'Обновить существующий атрибут товара',
+      parameters: {
+        id: { type: 'number', description: 'ID атрибута', required: true },
+        attributeData: { 
+          type: 'object', 
+          description: 'Данные для обновления атрибута', 
+          required: true 
+        }
+      },
+      execute: async (params) => attributeTools.updateProductAttribute(params.id, params.attributeData)
+    },
+    
+    delete_product_attribute: {
+      description: 'Удалить атрибут товара',
+      parameters: {
+        id: { type: 'number', description: 'ID атрибута', required: true },
+        force: { type: 'boolean', description: 'Принудительное удаление' }
+      },
+      execute: async (params) => attributeTools.deleteProductAttribute(params.id, params.force)
+    },
+    
+    // Купоны
+    list_coupons: {
+      description: 'Получить список купонов',
+      parameters: {
+        page: { type: 'number', description: 'Номер страницы' },
+        per_page: { type: 'number', description: 'Количество купонов на странице' },
+        search: { type: 'string', description: 'Поисковый запрос' }
+      },
+      execute: async (params) => couponTools.listCoupons(params)
+    },
+    
+    get_coupon: {
+      description: 'Получить информацию о конкретном купоне',
+      parameters: {
+        id: { type: 'number', description: 'ID купона', required: true }
+      },
+      execute: async (params) => couponTools.getCoupon(params.id)
+    },
+    
+    create_coupon: {
+      description: 'Создать новый купон',
+      parameters: {
+        couponData: { 
+          type: 'object', 
+          description: 'Данные купона', 
+          required: true 
+        }
+      },
+      execute: async (params) => couponTools.createCoupon(params.couponData)
+    },
+    
+    update_coupon: {
+      description: 'Обновить существующий купон',
+      parameters: {
+        id: { type: 'number', description: 'ID купона', required: true },
+        couponData: { 
+          type: 'object', 
+          description: 'Данные для обновления купона', 
+          required: true 
+        }
+      },
+      execute: async (params) => couponTools.updateCoupon(params.id, params.couponData)
+    },
+    
+    delete_coupon: {
+      description: 'Удалить купон',
+      parameters: {
+        id: { type: 'number', description: 'ID купона', required: true },
+        force: { type: 'boolean', description: 'Принудительное удаление' }
+      },
+      execute: async (params) => couponTools.deleteCoupon(params.id, params.force)
+    },
+    
+    // Настройки
+    get_settings_group: {
+      description: 'Получить настройки для определенной группы',
+      parameters: {
+        group: { type: 'string', description: 'ID группы настроек', required: true }
+      },
+      execute: async (params) => settingsTools.getSettingsGroup(params.group)
+    },
+    
+    update_setting: {
+      description: 'Обновить значение настройки',
+      parameters: {
+        group: { type: 'string', description: 'ID группы настроек', required: true },
+        id: { type: 'string', description: 'ID настройки', required: true },
+        value: { type: 'any', description: 'Новое значение', required: true }
+      },
+      execute: async (params) => settingsTools.updateSetting(params.group, params.id, params.value)
     },
     
     // ---------------------------
@@ -470,7 +649,7 @@ https://woocommerce.github.io/woocommerce-rest-api-docs/
 });
 
 // Добавляем WordPress-инструменты, если предоставлены учетные данные
-if (postTools && seoTools) {
+if (postTools && seoTools && mediaTools) {
   // Инструменты для статей WordPress
   server.extendTools({
     // ---------------------------
@@ -572,6 +751,85 @@ if (postTools && seoTools) {
         }
       },
       execute: async (params) => seoTools.updateRankMathPostData(params.postId, params.seoData)
+    },
+    
+    // ---------------------------
+    // Инструменты для медиа
+    // ---------------------------
+    list_media: {
+      description: 'Получить список медиа-файлов',
+      parameters: {
+        page: { type: 'number', description: 'Номер страницы' },
+        per_page: { type: 'number', description: 'Количество медиа-файлов на странице' },
+        search: { type: 'string', description: 'Поисковый запрос' }
+      },
+      execute: async (params) => mediaTools.listMedia(params)
+    },
+    
+    get_media: {
+      description: 'Получить информацию о конкретном медиа-файле',
+      parameters: {
+        id: { type: 'number', description: 'ID медиа-файла', required: true }
+      },
+      execute: async (params) => mediaTools.getMedia(params.id)
+    },
+    
+    upload_media_from_base64: {
+      description: 'Загрузить медиа-файл из base64-строки',
+      parameters: {
+        base64Data: { type: 'string', description: 'Base64-строка с данными файла', required: true },
+        filename: { type: 'string', description: 'Имя файла', required: true },
+        mimeType: { type: 'string', description: 'MIME-тип файла', required: true },
+        title: { type: 'string', description: 'Заголовок медиа-файла' },
+        altText: { type: 'string', description: 'Альтернативный текст' }
+      },
+      execute: async (params) => mediaTools.uploadMediaFromBase64(
+        params.base64Data,
+        params.filename,
+        params.mimeType,
+        params.title,
+        null, // caption
+        params.altText
+      )
+    },
+    
+    update_media: {
+      description: 'Обновить метаданные медиа-файла',
+      parameters: {
+        id: { type: 'number', description: 'ID медиа-файла', required: true },
+        mediaData: { 
+          type: 'object', 
+          description: 'Данные для обновления', 
+          required: true 
+        }
+      },
+      execute: async (params) => mediaTools.updateMedia(params.id, params.mediaData)
+    },
+    
+    delete_media: {
+      description: 'Удалить медиа-файл',
+      parameters: {
+        id: { type: 'number', description: 'ID медиа-файла', required: true },
+        force: { type: 'boolean', description: 'Принудительное удаление' }
+      },
+      execute: async (params) => mediaTools.deleteMedia(params.id, params.force)
+    },
+    
+    upload_product_image: {
+      description: 'Загрузить изображение товара',
+      parameters: {
+        productId: { type: 'number', description: 'ID товара', required: true },
+        imageData: { type: 'string', description: 'Base64-строка с данными изображения', required: true },
+        filename: { type: 'string', description: 'Имя файла', required: true },
+        isFeature: { type: 'boolean', description: 'Установить как основное изображение' }
+      },
+      execute: async (params) => mediaTools.uploadProductImage(
+        params.productId,
+        params.imageData,
+        params.filename,
+        true, // isBase64
+        params.isFeature
+      )
     }
   });
 } else {
