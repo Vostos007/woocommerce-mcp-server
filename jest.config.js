@@ -9,10 +9,5 @@ module.exports = {
     '!src/types/**/*',
     '!src/index.ts'
   ],
-  moduleFileExtensions: ['ts', 'js', 'json', 'node'],
-  globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.json'
-    }
-  }
+  moduleFileExtensions: ['ts', 'js', 'json', 'node']
 };
