@@ -2,6 +2,14 @@
  * Типы данных для WooCommerce API
  */
 
+/** Конфигурация подключения к WooCommerce */
+export interface WooCommerceConfig {
+  url: string;
+  consumerKey: string;
+  consumerSecret: string;
+  version?: string;
+}
+
 /**
  * Тип товара
  */

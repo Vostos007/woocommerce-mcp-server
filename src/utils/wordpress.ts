@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { WordPressConfig } from '../types/wordpress';
 
 /**
  * Класс для работы с WordPress REST API
@@ -13,11 +14,7 @@ export default class WordPressClient {
    * Создает экземпляр клиента WordPress API
    * @param config Конфигурация для WordPress API
    */
-  constructor(config: {
-    url: string;
-    username: string;
-    password: string;
-  }) {
+  constructor(config: WordPressConfig) {
     this.baseUrl = config.url.replace(/\/$/, '');
     this.username = config.username;
     this.password = config.password;
@@ -178,4 +175,11 @@ export default class WordPressClient {
     const response = await axios.get(`${this.baseUrl}/wp-json/wp/v2`);
     return response.data.routes;
   }
+}
+
+/**
+ * Convenience factory to create a WordPressClient instance.
+ */
+export function createWordPressClient(config: WordPressConfig): WordPressClient {
+  return new WordPressClient(config);
 }

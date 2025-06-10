@@ -2,6 +2,13 @@
  * Типы данных для WordPress REST API
  */
 
+/** Конфигурация подключения к WordPress */
+export interface WordPressConfig {
+  url: string;
+  username: string;
+  password: string;
+}
+
 /**
  * Интерфейс записи (поста) WordPress
  */

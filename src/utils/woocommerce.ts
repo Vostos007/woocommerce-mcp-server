@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { createHmac } from 'crypto';
 import * as oauth1a from 'oauth-1.0a';
+import { WooCommerceConfig } from '../types/woocommerce';
 
 /**
  * Класс для работы с WooCommerce REST API
@@ -16,12 +17,7 @@ export default class WooCommerceClient {
    * Создает экземпляр клиента WooCommerce API
    * @param config Конфигурация для WooCommerce API
    */
-  constructor(config: {
-    url: string;
-    consumerKey: string;
-    consumerSecret: string;
-    version?: string;
-  }) {
+  constructor(config: WooCommerceConfig) {
     this.baseUrl = config.url.replace(/\/$/, '');
     this.consumerKey = config.consumerKey;
     this.consumerSecret = config.consumerSecret;
@@ -201,4 +197,11 @@ export default class WooCommerceClient {
       throw error;
     }
   }
+}
+
+/**
+ * Convenience factory to create a WooCommerceClient instance.
+ */
+export function createWooCommerceClient(config: WooCommerceConfig): WooCommerceClient {
+  return new WooCommerceClient(config);
 }
